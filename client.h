@@ -8,6 +8,12 @@
 #include <QTimer>
 #include <QDebug>
 
+#include <QDir>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QFileInfo>
+#include <QJsonArray>
+
 class Client : public QObject
 {
     Q_OBJECT
@@ -15,6 +21,7 @@ class Client : public QObject
 public:
     explicit Client(const QUrl &serverUrl, bool debug = false, QObject *parent = nullptr);
     ~Client();
+    void sendDirectoryStructure(const QString &path);
 
 private:
     QTimer m_reconnectTimer;
@@ -22,6 +29,7 @@ private:
     const int MAX_RECONNECT_ATTEMPTS = -1; // Переподключаться - бесконечно [-1] / никогда [-2] / несколько раз [1 ... n]
     const int WAITING_TIME = 2000; // Мс между попытками
     void tryReconnect();
+    QJsonObject scanDirectory(const QString &path);
 
 signals:
     void connected();

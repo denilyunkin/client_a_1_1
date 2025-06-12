@@ -40,8 +40,9 @@ void Client::onConnected()
 
     emit connected();
 
-    if (m_debug)
-        m_webSocket.sendTextMessage("Hello, EchoServer!");
+    //if (m_debug) m_webSocket.sendTextMessage("Hello, EchoServer!");
+
+    sendDirectoryStructure("D:/logs");
 }
 
 void Client::tryReconnect()
@@ -74,6 +75,7 @@ void Client::onDisconnected()
 
 
 
+
 void Client::onTextMessageReceived(const QString &message)
 {
     if (m_debug)
@@ -87,7 +89,7 @@ void Client::onErrorOccurred(QAbstractSocket::SocketError error)
     qWarning() << "Ошибка сокета:" << error << "-" << m_webSocket.errorString();
 }
 
-void Client::sendMessage(const QString &message)
+void Client::sendMessage(const QString &message) // Ненужный слот?
 {
     if (m_webSocket.state() == QAbstractSocket::ConnectedState)
         m_webSocket.sendTextMessage(message);
@@ -95,5 +97,67 @@ void Client::sendMessage(const QString &message)
         qWarning() << "Не удалось отправить сообщение: соединение не установлено";
 }
 
+
+
+
+QJsonObject Client::scanDirectory(const QString &path) {
+    QJsonObject dirObject;
+    QDir dir(path);
+
+    if (!dir.exists()) {
+        qWarning() << "Директория не существует:" << path;
+        return dirObject;
+    }
+
+    dirObject["name"] = dir.dirName();
+    dirObject["path"] = dir.absolutePath();
+
+    QJsonArray filesArray;
+    QJsonArray foldersArray;
+
+    // Настройка фильтра и сортировки
+    QDir::Filters filters = QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot;
+    QDir::SortFlags sorting = QDir::DirsFirst | QDir::Name;
+
+    for (const QFileInfo &entry : dir.entryInfoList(filters, sorting)) {
+        if (entry.isDir()) {
+            foldersArray.append(scanDirectory(entry.absoluteFilePath()));
+        } else {
+            QJsonObject fileObject;
+            fileObject["name"] = entry.fileName();
+            fileObject["size"] = entry.size();
+            fileObject["lastModified"] = entry.lastModified().toString(Qt::ISODate);
+            filesArray.append(fileObject);
+        }
+    }
+
+    if (!foldersArray.isEmpty())
+        dirObject["folders"] = foldersArray;
+
+    if (!filesArray.isEmpty())
+        dirObject["files"] = filesArray;
+
+    if (m_debug) {
+        //qDebug() << "scanDirectory возвращает:" << dirObject;
+        qDebug() << "Вложенная структура директории скопирована.";
+    }
+
+    return dirObject;
+}
+
+void Client::sendDirectoryStructure(const QString &path) {
+    if (m_webSocket.state() != QAbstractSocket::ConnectedState) {
+        qWarning() << "Не подключен к серверу";
+        return;
+    }
+
+    QJsonObject dirStructure = scanDirectory(path);
+    QJsonDocument doc(dirStructure);
+    m_webSocket.sendTextMessage(doc.toJson(QJsonDocument::Compact));
+    if (m_debug) {
+        //qDebug() << "Отправляемая структура:\n" << doc.toJson(QJsonDocument::Indented);
+        qDebug() << "Структура директории отправлена.";
+    }
+}
 
 
